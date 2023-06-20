@@ -55,9 +55,9 @@ public class AppController {
         return res.toString();
     }
 
-//    @RequestMapping(value = "/sendKafka", method = RequestMethod.POST)
-//    public String sendKafka(@RequestBody CrawlerRequest request) throws IOException, InterruptedException {
-//        producer.send(request);
-//        return "OK";
-//    }
+    @RequestMapping(value = "/sendKafka", method = RequestMethod.POST)
+    public String sendKafka(@RequestBody CrawlerRequest request) throws IOException, InterruptedException {
+        producer.send(request);
+        return "OK";
+    }
 }
