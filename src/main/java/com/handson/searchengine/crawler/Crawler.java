@@ -4,6 +4,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.handson.searchengine.kafka.Producer;
 import com.handson.searchengine.model.*;
+import com.handson.searchengine.util.ElasticSearch;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.jsoup.Jsoup;
@@ -13,12 +14,7 @@ import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
 
 import java.io.IOException;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Set;
-import java.util.concurrent.ArrayBlockingQueue;
-import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 @Service
@@ -33,30 +29,14 @@ public class Crawler {
     @Autowired
     Producer producer;
 
+    @Autowired
+    ElasticSearch elasticSearch;
     protected final Log logger = LogFactory.getLog(getClass());
-
-//    public static final int MAX_CAPACITY = 100000;
-//    private BlockingQueue<CrawlerRecord> queue = new ArrayBlockingQueue<CrawlerRecord>(MAX_CAPACITY);
 
     public void crawl(String crawlId, CrawlerRequest crawlerRequest) throws InterruptedException, IOException {
         initCrawlInRedis(crawlId);
         producer.send(CrawlerRecord.of(crawlId, crawlerRequest));
-//        queue.clear();
-//        queue.put(CrawlerRecord.of(crawlId, crawlerRequest));
-//        while (!queue.isEmpty() && getStopReason(queue.peek()) == null) {
-//            CrawlerRecord rec = queue.poll();
-////            logger.info("crawling url:" + rec.getUrl());
-////            setCrawlStatus(crawlId, CrawlStatus.of(rec.getDistance(), rec.getStartTime(), 0, null));
-////            Document webPageContent = Jsoup.connect(rec.getUrl()).get();
-////            List<String> innerUrls = extractWebPageUrls(rec.getBaseUrl(), webPageContent);
-////            addUrlsToQueue(rec, innerUrls, rec.getDistance() +1);
-////        }
-//        }
-
-//        CrawlerRecord rec = queue.peek();
-//        var stopReason = getStopReason(queue.peek());
-//        setCrawlStatus(crawlId, CrawlStatus.of(rec.getDistance(), rec.getStartTime(), 0, stopReason));
-   }
+    }
 
     public void crawlOneRecord(String crawlId, CrawlerRecord rec) throws IOException, InterruptedException {
         logger.info("crawling url:" + rec.getUrl());
@@ -64,10 +44,10 @@ public class Crawler {
         setCrawlStatus(crawlId, CrawlStatus.of(rec.getDistance(), rec.getStartTime(), 0, stopReason));
         if(stopReason == null ) {
             Document webPageContent = Jsoup.connect(rec.getUrl()).get();
+            indexElasticSearch(rec, webPageContent);
             List<String> innerUrls = extractWebPageUrls(rec.getBaseUrl(), webPageContent);
             addUrlsToQueue(rec, innerUrls, rec.getDistance() + 1);
         }
-
     }
 
 
@@ -99,7 +79,12 @@ public class Crawler {
         return links;
     }
 
-
+    private void indexElasticSearch(CrawlerRecord rec, Document webPageContent) {
+        logger.info(">> adding elastic search for webPage: " + rec.getUrl());
+        String text = String.join(" ", webPageContent.select("a[href]").eachText());
+        UrlSearchDoc searchDoc = UrlSearchDoc.of(rec.getCrawlId(), text, rec.getUrl(), rec.getBaseUrl(), rec.getDistance());
+        elasticSearch.addData(searchDoc);
+    }
 
     private void initCrawlInRedis(String crawlId) throws JsonProcessingException {
         setCrawlStatus(crawlId, CrawlStatus.of(0, System.currentTimeMillis(),0,  null));

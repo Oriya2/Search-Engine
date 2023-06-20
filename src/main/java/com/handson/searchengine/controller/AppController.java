@@ -3,7 +3,6 @@ package com.handson.searchengine.controller;
 
 import com.handson.searchengine.crawler.Crawler;
 import com.handson.searchengine.kafka.Producer;
-import com.handson.searchengine.model.CrawlStatus;
 import com.handson.searchengine.model.CrawlStatusOut;
 import com.handson.searchengine.model.CrawlerRequest;
 import org.springframework.beans.factory.annotation.Autowired;
